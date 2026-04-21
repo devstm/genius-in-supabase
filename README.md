@@ -1,36 +1,148 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Genius in Supabase
 
-## Getting Started
+An AI-powered documentation assistant that lets you ask natural language questions about Supabase and get accurate, cited answers. 
 
-First, run the development server:
+![Welcome Screen](screenshots/welcome.png)
+![Chat Interface](screenshots/chat.png)
+
+## What it does
+
+Instead of searching through hundreds of documentation pages manually, you ask a question in plain English and get a direct answer with links to the exact source files it used.
+
+## How it works
+
+```
+Supabase MDX docs (10,454 chunks)
+         |
+Embedded with all-MiniLM-L6-v2
+         |
+Stored in pgvector (PostgreSQL)
+         |
+User asks a question
+         |
+Question embedded -> semantic search
+         |
+Top 5 relevant chunks retrieved
+         |
+Chunks sent to llama3.2 via Ollama
+         |
+Answer with cited sources returned
+```
+
+## Tech stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | Next.js App Router, TypeScript, Tailwind CSS |
+| Backend | Next.js API Routes |
+| Embeddings | `all-MiniLM-L6-v2` via `@xenova/transformers` (local, no API key) |
+| Vector search | pgvector + HNSW index on PostgreSQL |
+| LLM | llama3.2 via Ollama (local, no API key) |
+| Database | PostgreSQL 16 via Docker |
+
+## Key technical decisions
+
+**Why pgvector instead of Chroma or Pinecone?**
+pgvector keeps the vector store inside PostgreSQL, so there is no separate service to run or maintain. The HNSW index makes search fast at scale without needing a managed vector database.
+
+**Why local models?**
+Both the embedding model and the LLM run entirely on your machine. No API costs, no data sent to third parties, and it works offline.
+
+**Why semantic search over keyword search?**
+A user asking "how do I restrict table access?" and documentation saying "Row Level Security policies" share no common words, but semantic search finds the match because it understands meaning.
+
+## Getting started
+
+### Prerequisites
+- Node.js 18+
+- Docker
+- Ollama
+
+### 1. Clone the repo
+
+```bash
+git clone https://github.com/your-username/genius-in-supabase
+cd genius-in-supabase
+```
+
+### 2. Install dependencies
+
+```bash
+npm install
+```
+
+### 3. Start the database
+
+```bash
+docker run -d \
+  --name pgvector-db \
+  -e POSTGRES_PASSWORD=password \
+  -p 5432:5432 \
+  pgvector/pgvector:pg16
+```
+
+### 4. Set up environment variables
+
+```bash
+cp .env.example .env.local
+```
+
+```
+DATABASE_URL=postgresql://postgres:password@localhost:5432/ragchat
+GITHUB_TOKEN=your_github_token
+```
+
+### 5. Create the database schema
+
+```bash
+docker exec -it pgvector-db psql -U postgres -c "CREATE DATABASE ragchat;"
+docker exec -it pgvector-db psql -U postgres -d ragchat -c "CREATE EXTENSION IF NOT EXISTS vector;"
+docker exec -it pgvector-db psql -U postgres -d ragchat -c "
+  CREATE TABLE documents (
+    id SERIAL PRIMARY KEY,
+    content TEXT NOT NULL,
+    embedding vector(384),
+    source TEXT,
+    filename TEXT,
+    created_at TIMESTAMP DEFAULT NOW()
+  );
+  CREATE INDEX ON documents USING hnsw (embedding vector_cosine_ops);
+"
+```
+
+### 6. Pull the LLM
+
+```bash
+ollama pull llama3.2
+```
+
+### 7. Ingest the Supabase docs
+
+```bash
+DATABASE_URL=postgresql://postgres:password@localhost:5432/ragchat \
+GITHUB_TOKEN=your_token \
+npx ts-node scripts/ingest.ts
+```
+
+This fetches and embeds 10,000+ chunks from the official Supabase documentation.
+
+### 8. Run the app
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## What I learned building this
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- How RAG pipelines work end to end: chunking, embedding, retrieval, generation
+- How pgvector stores and searches high-dimensional vectors using HNSW indexing
+- The practical difference between semantic search and keyword search
+- How to run LLMs locally using Ollama with no API costs
+- How to build a Next.js API route that connects to a local LLM
 
-## Learn More
+## Author
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+**Saleh Marouf** - Full-stack software engineer  
+[LinkedIn](https://linkedin.com/in/your-profile) · [GitHub](https://github.com/your-username)
