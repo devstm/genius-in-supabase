@@ -1,6 +1,8 @@
 # Genius in Supabase
 
-An AI-powered documentation assistant that lets you ask natural language questions about Supabase and get accurate, cited answers. 
+An AI-powered documentation assistant that lets you ask natural language questions about Supabase and get accurate, cited answers.
+
+**Live demo:** https://genius-in-supabase-4zxr6fuv9-salehs-projects-21420035.vercel.app
 
 <img width="1920" height="910" alt="Screenshot_20260421_223714" src="https://github.com/user-attachments/assets/ebe9ac3f-b31a-4f29-bd95-bcedef74c0cc" />
 <img width="1919" height="901" alt="Screenshot_20260421_223843" src="https://github.com/user-attachments/assets/ff09fea1-f017-4cc9-8ebe-ceb35e828cb5" />
