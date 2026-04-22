@@ -1,7 +1,7 @@
 import { pipeline } from '@xenova/transformers'
 import { Pool } from 'pg'
 
-export const pool = new Pool({ connectionString: process.env.DATABASE_URL })
+const pool = new Pool({ connectionString: process.env.DATABASE_URL })
 
 let embedder: any = null
 

@@ -1,5 +1,7 @@
 import { search } from '@/lib/rag'
-import ollama from 'ollama'
+import Groq from 'groq-sdk'
+
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
 
 export async function POST(request: Request) {
   try {
@@ -22,13 +24,15 @@ export async function POST(request: Request) {
 Sources:
 ${context}`
 
-    const response = await ollama.chat({
-      model: 'llama3.2',
+    const response = await groq.chat.completions.create({
+      model: 'llama-3.1-8b-instant',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: question },
       ],
     })
+
+    const answer = response.choices[0].message.content ?? ''
 
     const sources = chunks.map((c) => ({
       filename: c.filename,
@@ -36,10 +40,7 @@ ${context}`
       similarity: c.similarity,
     }))
 
-    return Response.json({
-      answer: response.message.content,
-      sources,
-    })
+    return Response.json({ answer, sources })
   } catch (err) {
     console.error('[/api/chat]', err)
     return Response.json({ error: 'Internal server error' }, { status: 500 })

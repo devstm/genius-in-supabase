@@ -1,5 +1,24 @@
+import { pipeline } from '@xenova/transformers'
+import { Pool } from 'pg'
 import axios from 'axios'
-import { embed, pool } from '../lib/rag'
+
+const pool = new Pool({ connectionString: process.env.DATABASE_URL })
+
+let embedder: any = null
+
+async function getEmbedder() {
+  if (!embedder) {
+    console.log('Loading embedding model...')
+    embedder = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2')
+  }
+  return embedder
+}
+
+async function embed(text: string): Promise<number[]> {
+  const model = await getEmbedder()
+  const output = await model(text, { pooling: 'mean', normalize: true })
+  return Array.from(output.data) as number[]
+}
 
 function chunkText(text: string, chunkSize = 500, overlap = 50): string[] {
   const chunks: string[] = []
@@ -12,24 +31,16 @@ function chunkText(text: string, chunkSize = 500, overlap = 50): string[] {
   return chunks
 }
 
-type GitHubFile = {
-  type: 'file' | 'dir'
-  name: string
-  path: string
-  download_url: string
-  html_url: string
-}
-
-async function fetchFiles(path: string): Promise<GitHubFile[]> {
+async function fetchFiles(path: string): Promise<any[]> {
   const url = `https://api.github.com/repos/supabase/supabase/contents/${path}`
-  const response = await axios.get<GitHubFile[]>(url, {
+  const response = await axios.get(url, {
     headers: {
       Accept: 'application/vnd.github.v3+json',
       Authorization: `Bearer ${process.env.GITHUB_TOKEN}`
     }
   })
 
-  let allFiles: GitHubFile[] = []
+  let allFiles: any[] = []
 
   for (const item of response.data) {
     if (item.type === 'file' && (item.name.endsWith('.mdx') || item.name.endsWith('.md'))) {
