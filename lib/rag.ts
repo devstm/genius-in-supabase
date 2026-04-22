@@ -1,21 +1,26 @@
-import { pipeline } from '@xenova/transformers'
 import { Pool } from 'pg'
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL })
-
-let embedder: any = null
-
-async function getEmbedder() {
-  if (!embedder) {
-    embedder = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2')
-  }
-  return embedder
-}
+export const pool = new Pool({ connectionString: process.env.DATABASE_URL })
 
 export async function embed(text: string): Promise<number[]> {
-  const model = await getEmbedder()
-  const output = await model(text, { pooling: 'mean', normalize: true })
-  return Array.from(output.data) as number[]
+  const res = await fetch(
+    'https://router.huggingface.co/hf-inference/models/sentence-transformers/all-MiniLM-L6-v2/pipeline/feature-extraction',
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.HUGGINGFACE_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ inputs: text }),
+    }
+  )
+
+  if (!res.ok) {
+    throw new Error(`HuggingFace embedding failed: ${res.status} ${await res.text()}`)
+  }
+
+  const data = await res.json() as number[] | number[][]
+  return Array.isArray(data[0]) ? (data as number[][])[0] : (data as number[])
 }
 
 export async function search(query: string, topK = 5) {
