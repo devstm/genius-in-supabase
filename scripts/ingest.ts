@@ -1,32 +1,24 @@
-import { pipeline } from '@xenova/transformers'
 import { Pool } from 'pg'
 import axios from 'axios'
+import { embed } from '../lib/rag'
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL })
 
-let embedder: any = null
-
-async function getEmbedder() {
-  if (!embedder) {
-    console.log('Loading embedding model...')
-    embedder = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2')
-  }
-  return embedder
-}
-
-async function embed(text: string): Promise<number[]> {
-  const model = await getEmbedder()
-  const output = await model(text, { pooling: 'mean', normalize: true })
-  return Array.from(output.data) as number[]
-}
-
-function chunkText(text: string, chunkSize = 500, overlap = 50): string[] {
+function chunkText(text: string): string[] {
+  const sections = text.split(/(?=^#{1,3} )/m)
   const chunks: string[] = []
-  let start = 0
-  while (start < text.length) {
-    const end = start + chunkSize
-    chunks.push(text.slice(start, end))
-    start = end - overlap
+  for (const section of sections) {
+    if (section.trim().length < 50) continue
+
+    if (section.length > 1500) {
+      const paragraphs = section.split(/\n\n/)
+      for (const paragraph of paragraphs) {
+        if (paragraph.trim().length < 50) continue
+        chunks.push(paragraph.trim())
+      }
+    } else {
+      chunks.push(section.trim())
+    }
   }
   return chunks
 }

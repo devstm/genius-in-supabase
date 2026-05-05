@@ -1,102 +1,145 @@
-'use client'
+'use client';
 
-import { useState, useRef, useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { useState, useRef, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 type Source = {
-  filename: string
-  source: string
-  similarity: number
-}
+  filename: string;
+  source: string;
+  similarity: number;
+};
 
 type Message = {
-  role: 'user' | 'assistant'
-  content: string
-  sources?: Source[]
-}
+  role: 'user' | 'assistant';
+  content: string;
+  sources?: Source[];
+};
 
 const STARTER_QUESTIONS = [
-  { label: 'Setup Database Webhooks', icon: '⚡', q: 'How do I set up database webhooks in Supabase?' },
-  { label: 'RLS Policy Examples', icon: '🔒', q: 'Show me Row Level Security policy examples.' },
-  { label: 'Realtime Subscriptions', icon: '📡', q: 'How do I subscribe to realtime changes?' },
-  { label: 'Auth with OAuth', icon: '🔑', q: 'How do I configure OAuth providers for authentication?' },
-]
+  {
+    label: 'Setup Database Webhooks',
+    icon: '⚡',
+    q: 'How do I set up database webhooks in Supabase?',
+  },
+  {
+    label: 'RLS Policy Examples',
+    icon: '🔒',
+    q: 'Show me Row Level Security policy examples.',
+  },
+  {
+    label: 'Realtime Subscriptions',
+    icon: '📡',
+    q: 'How do I subscribe to realtime changes?',
+  },
+  {
+    label: 'Auth with OAuth',
+    icon: '🔑',
+    q: 'How do I configure OAuth providers for authentication?',
+  },
+];
 
 const PINNED_LINKS = [
   { label: 'Database', href: 'https://supabase.com/docs/guides/database' },
   { label: 'Auth', href: 'https://supabase.com/docs/guides/auth' },
   { label: 'Storage', href: 'https://supabase.com/docs/guides/storage' },
-  { label: 'Edge Functions', href: 'https://supabase.com/docs/guides/functions' },
-]
+  {
+    label: 'Edge Functions',
+    href: 'https://supabase.com/docs/guides/functions',
+  },
+];
 
 export default function Home() {
-  const [messages, setMessages] = useState<Message[]>([])
-  const [input, setInput] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [sidebarOpen, setSidebarOpen] = useState(true)
-  const bottomRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const isChat = messages.length > 0
+  const isChat = messages.length > 0;
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, loading])
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, loading]);
 
   // Global Cmd+K / Ctrl+K shortcut to focus input
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault()
-        inputRef.current?.focus()
+        e.preventDefault();
+        inputRef.current?.focus();
       }
     }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [])
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   async function submit(question?: string) {
-    const q = (question ?? input).trim()
-    if (!q || loading) return
+    const q = (question ?? input).trim();
+    if (!q || loading) return;
 
-    setInput('')
-    setMessages((prev) => [...prev, { role: 'user', content: q }])
-    setLoading(true)
+    setInput('');
+    setMessages((prev) => [...prev, { role: 'user', content: q }]);
+    setLoading(true);
 
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question: q }),
-      })
-      const data = await res.json()
+      });
 
-      setMessages((prev) => [
-        ...prev,
-        res.ok
-          ? { role: 'assistant', content: data.answer, sources: data.sources }
-          : { role: 'assistant', content: `Error: ${data.error ?? 'Something went wrong.'}` },
-      ])
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+
+      setMessages((prev) => [...prev, { role: 'assistant', content: '' }]);
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const text = decoder.decode(value);
+        await new Promise((resolve) => setTimeout(resolve, 30));
+
+        if (text.includes('__SOURCES__')) {
+          const [answerPart, sourcesPart] = text.split('__SOURCES__');
+          setMessages((prev) => {
+            const updated = [...prev];
+            updated[updated.length - 1] = {
+              role: 'assistant',
+              content: updated[updated.length - 1].content + answerPart,
+              sources: JSON.parse(sourcesPart),
+            };
+            return updated;
+          });
+        } else {
+          setMessages((prev) => {
+            const updated = [...prev];
+            updated[updated.length - 1] = {
+              role: 'assistant',
+              content: updated[updated.length - 1].content + text,
+            };
+            return updated;
+          });
+        }
+      }
     } catch {
       setMessages((prev) => [
         ...prev,
         { role: 'assistant', content: 'Network error. Please try again.' },
-      ])
+      ]);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      submit()
+      e.preventDefault();
+      submit();
     }
   }
 
   return (
     <div className="mesh-bg flex h-screen overflow-hidden text-zinc-100">
-
       {/* ── Sidebar ─────────────────────────────────────────── */}
       <AnimatePresence initial={false}>
         {sidebarOpen && (
@@ -111,7 +154,9 @@ export default function Home() {
             <div className="px-4 pt-5 pb-4 border-b border-white/5">
               <div className="flex items-center gap-2">
                 <span className="text-emerald-400 text-lg">⚡</span>
-                <span className="font-semibold text-sm tracking-tight">Supabase Docs</span>
+                <span className="font-semibold text-sm tracking-tight">
+                  Supabase Docs
+                </span>
               </div>
             </div>
 
@@ -137,16 +182,22 @@ export default function Home() {
               <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-600 px-1 mb-2">
                 Recent
               </p>
-              {messages.filter((m) => m.role === 'user').slice(-4).reverse().map((m, i) => (
-                <div
-                  key={i}
-                  className="px-2 py-1.5 rounded-lg text-xs text-zinc-500 truncate hover:text-zinc-300 hover:bg-white/5 transition-colors cursor-default"
-                >
-                  {m.content}
-                </div>
-              ))}
+              {messages
+                .filter((m) => m.role === 'user')
+                .slice(-4)
+                .reverse()
+                .map((m, i) => (
+                  <div
+                    key={i}
+                    className="px-2 py-1.5 rounded-lg text-xs text-zinc-500 truncate hover:text-zinc-300 hover:bg-white/5 transition-colors cursor-default"
+                  >
+                    {m.content}
+                  </div>
+                ))}
               {messages.filter((m) => m.role === 'user').length === 0 && (
-                <p className="px-2 text-xs text-zinc-700">No conversations yet.</p>
+                <p className="px-2 text-xs text-zinc-700">
+                  No conversations yet.
+                </p>
               )}
             </div>
           </motion.aside>
@@ -155,7 +206,6 @@ export default function Home() {
 
       {/* ── Main panel ──────────────────────────────────────── */}
       <div className="flex flex-col flex-1 min-w-0">
-
         {/* Topbar */}
         <header className="flex items-center gap-3 px-4 py-3 border-b border-white/5 shrink-0">
           <button
@@ -169,7 +219,9 @@ export default function Home() {
               <rect y="11.5" width="16" height="1.5" rx="0.75" />
             </svg>
           </button>
-          <span className="text-sm font-medium text-zinc-400">Supabase Docs Assistant</span>
+          <span className="text-sm font-medium text-zinc-400">
+            Supabase Docs Assistant
+          </span>
           {isChat && (
             <button
               onClick={() => setMessages([])}
@@ -200,7 +252,8 @@ export default function Home() {
                   What can I help you build?
                 </h1>
                 <p className="text-zinc-500 text-sm mb-10 text-center max-w-sm">
-                  Ask anything about Supabase. Answers are grounded in the official documentation.
+                  Ask anything about Supabase. Answers are grounded in the
+                  official documentation.
                 </p>
 
                 {/* Starter question cards */}
@@ -238,11 +291,17 @@ export default function Home() {
                     transition={{ duration: 0.2 }}
                     className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
-                    <div className={`max-w-2xl w-full ${msg.role === 'user' ? 'flex flex-col items-end' : ''}`}>
+                    <div
+                      className={`max-w-2xl w-full ${msg.role === 'user' ? 'flex flex-col items-end' : ''}`}
+                    >
                       {msg.role === 'assistant' && (
                         <div className="flex items-center gap-1.5 mb-1.5">
-                          <span className="w-4 h-4 rounded-full bg-emerald-500/20 flex items-center justify-center text-[9px] text-emerald-400">⚡</span>
-                          <span className="text-[10px] text-zinc-600 font-medium uppercase tracking-wider">Assistant</span>
+                          <span className="w-4 h-4 rounded-full bg-emerald-500/20 flex items-center justify-center text-[9px] text-emerald-400">
+                            ⚡
+                          </span>
+                          <span className="text-[10px] text-zinc-600 font-medium uppercase tracking-wider">
+                            Assistant
+                          </span>
                         </div>
                       )}
 
@@ -256,23 +315,29 @@ export default function Home() {
                         <p className="whitespace-pre-wrap">{msg.content}</p>
                       </div>
 
-                      {msg.role === 'assistant' && msg.sources && msg.sources.length > 0 && (
-                        <div className="mt-2 flex flex-wrap gap-1.5">
-                          {msg.sources.map((s, j) => (
-                            <a
-                              key={j}
-                              href={s.source}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1.5 text-[11px] text-zinc-500 bg-white/4 hover:bg-white/8 border border-white/6 hover:border-emerald-500/30 px-2.5 py-1 rounded-full transition-all"
-                            >
-                              <span className="text-emerald-500/70 font-mono">[{j + 1}]</span>
-                              {s.filename}
-                              <span className="text-zinc-700">{(s.similarity * 100).toFixed(0)}%</span>
-                            </a>
-                          ))}
-                        </div>
-                      )}
+                      {msg.role === 'assistant' &&
+                        msg.sources &&
+                        msg.sources.length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {msg.sources.map((s, j) => (
+                              <a
+                                key={j}
+                                href={s.source}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 text-[11px] text-zinc-500 bg-white/4 hover:bg-white/8 border border-white/6 hover:border-emerald-500/30 px-2.5 py-1 rounded-full transition-all"
+                              >
+                                <span className="text-emerald-500/70 font-mono">
+                                  [{j + 1}]
+                                </span>
+                                {s.filename}
+                                <span className="text-zinc-700">
+                                  {(s.similarity * 100).toFixed(0)}%
+                                </span>
+                              </a>
+                            ))}
+                          </div>
+                        )}
                     </div>
                   </motion.div>
                 ))}
@@ -290,7 +355,11 @@ export default function Home() {
                             key={i}
                             className="w-1.5 h-1.5 rounded-full bg-emerald-500/60"
                             animate={{ opacity: [0.3, 1, 0.3] }}
-                            transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.2 }}
+                            transition={{
+                              duration: 1.2,
+                              repeat: Infinity,
+                              delay: i * 0.2,
+                            }}
                           />
                         ))}
                       </span>
@@ -333,8 +402,7 @@ export default function Home() {
             </motion.button>
           </div>
         </div>
-
       </div>
     </div>
-  )
+  );
 }
