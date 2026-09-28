@@ -57,6 +57,17 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+
+  async function copyToClipboard(text: string, index: number) {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedIndex(index);
+      setTimeout(() => setCopiedIndex(null), 1500);
+    } catch (err) {
+      console.error('Copy failed:', err);
+    }
+  }
 
   const isChat = messages.length > 0;
 
@@ -304,9 +315,52 @@ export default function Home() {
                         }
                       >
                         <div className="prose prose-invert prose-base max-w-none prose-p:my-2 prose-headings:mt-3 prose-headings:mb-1.5">
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                            {msg.content}
-                          </ReactMarkdown>
+                          <div className="prose prose-invert prose-base max-w-none prose-p:my-2 prose-headings:mt-3 prose-headings:mb-1.5">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                              {msg.content}
+                            </ReactMarkdown>
+                          </div>
+
+                          {msg.role === 'assistant' && msg.content && (
+                            <button
+                              onClick={() => copyToClipboard(msg.content, i)}
+                              className="mt-1.5 inline-flex items-center gap-1 text-[11px] text-zinc-600 hover:text-zinc-300 transition-colors"
+                              title="Copy response"
+                            >
+                              {copiedIndex === i ? (
+                                <>
+                                  <svg
+                                    width="24"
+                                    height="24"
+                                    viewBox="0 0 16 16"
+                                    fill="currentColor"
+                                  >
+                                    <path d="M13.5 3.5L6 11l-3.5-3.5.707-.707L6 9.586l6.793-6.793z" />
+                                  </svg>
+                                </>
+                              ) : (
+                                <>
+                                  <svg
+                                    width="24"
+                                    height="24"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="1.3"
+                                  >
+                                    <rect
+                                      x="5"
+                                      y="5"
+                                      width="9"
+                                      height="9"
+                                      rx="1.5"
+                                    />
+                                    <path d="M3 10.5V3.5A1.5 1.5 0 014.5 2h7" />
+                                  </svg>
+                                </>
+                              )}
+                            </button>
+                          )}
                         </div>
                       </div>
 
