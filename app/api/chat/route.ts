@@ -26,7 +26,7 @@ Sources:
 ${context}`
 
     const response = await groq.chat.completions.create({
-      model: 'openai/gpt-oss-120b',
+      model: process.env.GROQ_API_MODEL || 'openai/gpt-oss-120b',
       stream: true,
       messages: [
         { role: 'system', content: systemPrompt },
