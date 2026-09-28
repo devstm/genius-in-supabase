@@ -1,3 +1,4 @@
+import { classifyError } from '@/lib/errors'
 import { rerank, search } from '../../../lib/rag'
 import Groq from 'groq-sdk'
 
@@ -53,8 +54,9 @@ ${context}`
     return new Response(stream, {
       headers: { 'Content-Type': 'text/plain; charset=utf-8' }
     })
-  } catch (err) {
+  } catch (err: any) {
     console.error('[/api/chat]', err)
-    return Response.json({ error: 'Internal server error' }, { status: 500 })
+    const { status, code, message } = classifyError(err)
+    return Response.json({ error: code, message }, { status })
   }
 }
