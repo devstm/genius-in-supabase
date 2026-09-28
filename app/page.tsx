@@ -2,6 +2,8 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 type Source = {
   filename: string;
@@ -281,7 +283,7 @@ export default function Home() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.2 }}
-                className="px-4 py-6 space-y-5 max-w-3xl mx-auto w-full"
+                className="px-4 py-6 space-y-5 max-w-4xl mx-auto w-full"
               >
                 {messages.map((msg, i) => (
                   <motion.div
@@ -292,27 +294,20 @@ export default function Home() {
                     className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
                     <div
-                      className={`max-w-2xl w-full ${msg.role === 'user' ? 'flex flex-col items-end' : ''}`}
+                      className={`max-w-4xl w-full ${msg.role === 'user' ? 'flex flex-col items-end' : ''}`}
                     >
-                      {msg.role === 'assistant' && (
-                        <div className="flex items-center gap-1.5 mb-1.5">
-                          <span className="w-4 h-4 rounded-full bg-emerald-500/20 flex items-center justify-center text-[9px] text-emerald-400">
-                            ⚡
-                          </span>
-                          <span className="text-[10px] text-zinc-600 font-medium uppercase tracking-wider">
-                            Assistant
-                          </span>
-                        </div>
-                      )}
-
                       <div
                         className={
                           msg.role === 'user'
                             ? 'bg-white/8 border border-white/10 rounded-2xl rounded-tr-sm px-4 py-2.5 text-sm text-zinc-200 max-w-lg'
-                            : 'bg-white/[0.04] border border-white/6 rounded-2xl rounded-tl-sm px-4 py-3 text-sm text-zinc-300 w-full leading-relaxed'
+                            : 'bg-red/[0.04] px-4 py-3 text-base text-zinc-300 w-full leading-relaxed'
                         }
                       >
-                        <p className="whitespace-pre-wrap">{msg.content}</p>
+                        <div className="prose prose-invert prose-base max-w-none prose-p:my-2 prose-headings:mt-3 prose-headings:mb-1.5">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {msg.content}
+                          </ReactMarkdown>
+                        </div>
                       </div>
 
                       {msg.role === 'assistant' &&
