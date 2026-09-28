@@ -15,6 +15,7 @@ type Message = {
   role: 'user' | 'assistant';
   content: string;
   sources?: Source[];
+  isError?: boolean;
 };
 
 const STARTER_QUESTIONS = [
@@ -58,6 +59,7 @@ export default function Home() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [showNotice, setShowNotice] = useState(true);
 
   async function copyToClipboard(text: string, index: number) {
     try {
@@ -101,7 +103,17 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question: q }),
       });
-
+      if (!res.ok) {
+        const errorBody = await res.json().catch(() => null);
+        const message =
+          errorBody?.message ?? 'Something went wrong. Please try again.';
+        setMessages((prev) => [
+          ...prev,
+          { role: 'assistant', isError: true, content: message },
+        ]);
+        setLoading(false);
+        return;
+      }
       const reader = res.body!.getReader();
       const decoder = new TextDecoder();
 
@@ -153,6 +165,55 @@ export default function Home() {
 
   return (
     <div className="mesh-bg flex h-screen overflow-hidden text-zinc-100">
+      {showNotice && (
+        <div className="fixed top-4 right-4 z-50 max-w-xs bg-white/[0.04] border border-white/10 backdrop-blur-sm rounded-xl px-4 py-3 text-xs text-zinc-400 leading-relaxed shadow-lg">
+          <div className="flex items-start justify-between gap-2 mb-1.5">
+            <span className="flex items-center gap-1.5 text-zinc-300 font-medium">
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.4"
+              >
+                <circle cx="8" cy="8" r="6.5" />
+                <path d="M8 5v3.5M8 11h.01" strokeLinecap="round" />
+              </svg>
+              Heads up
+            </span>
+            <button
+              onClick={() => setShowNotice(false)}
+              className="text-zinc-600 hover:text-zinc-300 transition-colors"
+              title="Dismiss"
+            >
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              >
+                <path d="M4 4l8 8M12 4l-8 8" strokeLinecap="round" />
+              </svg>
+            </button>
+          </div>
+          <p>
+            This is an AI model and may make mistakes, verify important details
+            against the official docs.
+          </p>
+          <p className="mt-1.5">
+            The backend runs on Supabase&apos;s free tier, which pauses after a
+            week of no activity. If it&apos;s been idle, the first request may
+            take longer or fail while it wakes up.
+          </p>
+          <p className="mt-1.5">
+            Embedding and generation also run on free-tier APIs, so responses
+            may occasionally be delayed or unavailable if usage limits are hit.
+          </p>
+        </div>
+      )}
       {/* ── Sidebar ─────────────────────────────────────────── */}
       <AnimatePresence initial={false}>
         {sidebarOpen && (
@@ -307,20 +368,59 @@ export default function Home() {
                     <div
                       className={`max-w-4xl w-full ${msg.role === 'user' ? 'flex flex-col items-end' : ''}`}
                     >
-                      <div
-                        className={
-                          msg.role === 'user'
-                            ? 'bg-white/8 border border-white/10 rounded-2xl rounded-tr-sm px-4 py-2.5 text-sm text-zinc-200 max-w-lg'
-                            : 'bg-red/[0.04] px-4 py-3 text-base text-zinc-300 w-full leading-relaxed'
-                        }
-                      >
-                        <div className="prose prose-invert prose-base max-w-none prose-p:my-2 prose-headings:mt-3 prose-headings:mb-1.5">
+                      {msg.isError ? (
+                        <div className="flex items-start gap-2.5 bg-amber-500/8 border border-amber-500/20 rounded-2xl rounded-tl-sm px-4 py-3 text-sm text-amber-200/90">
+                          <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.4"
+                            className="mt-0.5 shrink-0"
+                          >
+                            <circle cx="8" cy="8" r="6.5" />
+                            <path d="M8 5v3.5M8 11h.01" strokeLinecap="round" />
+                          </svg>
+                          <span>{msg.content}</span>
+                        </div>
+                      ) : (
+                        <div
+                          className={
+                            msg.role === 'user'
+                              ? 'bg-white/8 border border-white/10 rounded-2xl rounded-tr-sm px-4 py-2.5 text-sm text-zinc-200 max-w-lg'
+                              : 'px-4 py-3 text-base text-zinc-300 w-full leading-relaxed'
+                          }
+                        >
                           <div className="prose prose-invert prose-base max-w-none prose-p:my-2 prose-headings:mt-3 prose-headings:mb-1.5">
                             <ReactMarkdown remarkPlugins={[remarkGfm]}>
                               {msg.content}
                             </ReactMarkdown>
                           </div>
-
+                          {msg.role === 'assistant' &&
+                            msg.sources &&
+                            msg.sources.length > 0 && (
+                              <div className="mt-2 flex flex-wrap gap-1.5">
+                                {msg.sources.map((s, j) => (
+                                  <a
+                                    key={j}
+                                    href={s.source}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1.5 text-[11px] text-zinc-500 bg-white/4 hover:bg-white/8 border border-white/6 hover:border-emerald-500/30 px-2.5 py-1 rounded-full transition-all"
+                                  >
+                                    <span className="text-emerald-500/70 font-mono">
+                                      [{j + 1}]
+                                    </span>
+                                    {s.filename}
+                                    <span className="text-zinc-700">
+                                      {(s.similarity * 100).toFixed(0)}%
+                                    </span>
+                                  </a>
+                                ))}
+                              </div>
+                            )}
+                          <div className="h-px bg-white/50 mt-6" />
                           {msg.role === 'assistant' && msg.content && (
                             <button
                               onClick={() => copyToClipboard(msg.content, i)}
@@ -328,65 +428,37 @@ export default function Home() {
                               title="Copy response"
                             >
                               {copiedIndex === i ? (
-                                <>
-                                  <svg
-                                    width="24"
-                                    height="24"
-                                    viewBox="0 0 16 16"
-                                    fill="currentColor"
-                                  >
-                                    <path d="M13.5 3.5L6 11l-3.5-3.5.707-.707L6 9.586l6.793-6.793z" />
-                                  </svg>
-                                </>
+                                <svg
+                                  width="24"
+                                  height="24"
+                                  viewBox="0 0 16 16"
+                                  fill="currentColor"
+                                >
+                                  <path d="M13.5 3.5L6 11l-3.5-3.5.707-.707L6 9.586l6.793-6.793z" />
+                                </svg>
                               ) : (
-                                <>
-                                  <svg
-                                    width="24"
-                                    height="24"
-                                    viewBox="0 0 16 16"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="1.3"
-                                  >
-                                    <rect
-                                      x="5"
-                                      y="5"
-                                      width="9"
-                                      height="9"
-                                      rx="1.5"
-                                    />
-                                    <path d="M3 10.5V3.5A1.5 1.5 0 014.5 2h7" />
-                                  </svg>
-                                </>
+                                <svg
+                                  width="24"
+                                  height="24"
+                                  viewBox="0 0 16 16"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="1.3"
+                                >
+                                  <rect
+                                    x="5"
+                                    y="5"
+                                    width="9"
+                                    height="9"
+                                    rx="1.5"
+                                  />
+                                  <path d="M3 10.5V3.5A1.5 1.5 0 014.5 2h7" />
+                                </svg>
                               )}
                             </button>
                           )}
                         </div>
-                      </div>
-
-                      {msg.role === 'assistant' &&
-                        msg.sources &&
-                        msg.sources.length > 0 && (
-                          <div className="mt-2 flex flex-wrap gap-1.5">
-                            {msg.sources.map((s, j) => (
-                              <a
-                                key={j}
-                                href={s.source}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1.5 text-[11px] text-zinc-500 bg-white/4 hover:bg-white/8 border border-white/6 hover:border-emerald-500/30 px-2.5 py-1 rounded-full transition-all"
-                              >
-                                <span className="text-emerald-500/70 font-mono">
-                                  [{j + 1}]
-                                </span>
-                                {s.filename}
-                                <span className="text-zinc-700">
-                                  {(s.similarity * 100).toFixed(0)}%
-                                </span>
-                              </a>
-                            ))}
-                          </div>
-                        )}
+                      )}
                     </div>
                   </motion.div>
                 ))}
